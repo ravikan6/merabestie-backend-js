@@ -165,7 +165,7 @@ router.post('/logout', async (req, res) => {
     }
 
     const seller = await Seller.findOne({ sellerId });
-    
+
     if (!seller) {
       return res.status(404).json({
         error: 'Seller not found'
@@ -180,7 +180,7 @@ router.post('/logout', async (req, res) => {
         return res.status(500).json({ error: 'Error logging out' });
       }
       res.clearCookie('connect.sid');
-      res.json({ 
+      res.json({
         success: true,
         message: 'Seller logged out successfully',
         loggedIn: 'loggedout'
@@ -191,6 +191,94 @@ router.post('/logout', async (req, res) => {
     res.status(500).json({
       error: 'Error logging out',
       details: error.message
+    });
+  }
+});
+
+router.post('/seller/send-otp', async (req, res) => {
+  try {
+    const { emailId } = req.body;
+    // Generate 6 digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    // Store OTP in MongoDB for this seller
+    await Seller.findOneAndUpdate(
+      { email: emailId },
+      { otp: otp }
+    );
+    // Send OTP email
+    const mailOptions = {
+      from: '"Mera Bestie Support" <pecommerce8@gmail.com>',
+      to: emailId,
+      subject: 'Verification OTP',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <h2>Mera Bestie Seller Verification</h2>
+          <p>Your verification OTP is: <strong>${otp}</strong></p>
+        </div>
+      `
+    };
+    await transporter.sendMail(mailOptions);
+    res.status(200).json({ message: 'OTP sent successfully' });
+  } catch (error) {
+    res.status(500).json({ error: 'Error sending OTP' });
+  }
+});
+
+// Verify OTP Route
+router.post('/seller/verify-otp', async (req, res) => {
+  try {
+    const { otp, emailId } = req.body;
+    if (!otp || !emailId) {
+      return res.status(400).json({
+        error: 'Missing required fields',
+        details: {
+          otp: !otp ? 'OTP is required' : null,
+          emailId: !emailId ? 'Email ID is required' : null
+        }
+      });
+    }
+    // Get seller and check OTP
+    const seller = await Seller.findOne({ email: emailId });
+    if (!seller) {
+      return res.status(400).json({
+        error: 'Seller not found',
+        details: `No seller found with email: ${emailId}`
+      });
+    }
+    if (!seller.otp) {
+      return res.status(400).json({
+        error: 'No OTP found',
+        details: 'OTP was not generated or has expired'
+      });
+    }
+    if (seller.otp !== otp) {
+      return res.status(400).json({
+        error: 'Invalid OTP',
+        details: 'The provided OTP does not match'
+      });
+    }
+    // Update verification status and clear OTP
+    try {
+      await Seller.findOneAndUpdate(
+        { email: emailId },
+        {
+          emailVerified: true,
+          phoneVerified: true,
+          otp: null
+        }
+      );
+    } catch (updateError) {
+      return res.status(500).json({
+        error: 'Database update failed',
+        details: updateError.message
+      });
+    }
+    res.status(200).json({ message: 'OTP verified successfully' });
+  } catch (error) {
+    res.status(500).json({
+      error: 'Error verifying OTP',
+      details: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 });
