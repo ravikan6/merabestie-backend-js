@@ -1,5 +1,5 @@
 const express = require('express');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs'); // Added bcrypt import
 const Seller = require('../models/seller'); // Adjust the path to your Seller schema
 const router = express.Router();
 

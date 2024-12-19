@@ -7,7 +7,7 @@ const MongoStore = require('connect-mongo');
 const authRoutes = require('./routes/auth');
 const uuid = require('uuid');
 const Razorpay = require('razorpay');
-const bcrypt = require('bcrypt'); // Added bcrypt import
+const bcrypt = require('bcryptjs'); // Added bcrypt import
 const crypto = require('crypto');
 const Seller = require('./models/seller');
 const adminAuthRoutes = require('./routes/adminauth');
@@ -22,10 +22,10 @@ if (!process.env.MONGO_URI) {
 
 const app = express();
 
-let origins = process.env.ALLOWD_ORIGINS;
+let origins = process.env.ALLOWED_ORIGINS?.split(',').map(origin => origin.trim());
 // Middleware
 app.use(cors({
-  origin: origins?.split(','), // Frontend URLs
+  origin: ["https://www.merabestie.com", "*.merabestie.com"], // Frontend URLs
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
@@ -38,6 +38,14 @@ app.use(express.urlencoded({ extended: true }));
 const razorpay = new Razorpay({
   key_id: process.env.RAZORPAY_KEY,
   key_secret: process.env.RAZORPAY_SECRET,
+});
+
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: 'pecommerce8@gmail.com', // Replace with your email
+    pass: 'rqrdabxuzpaecigz' // Replace with your password
+  }
 });
 
 app.use(
@@ -83,7 +91,6 @@ const productSchema = new mongoose.Schema({
 });
 
 const Product = mongoose.model('Product', productSchema);
-
 
 app.get('/', (req, res) => {
   res.status(200).json({
@@ -1180,7 +1187,7 @@ app.post('/find-my-order', async (req, res) => {
 });
 
 // Get Product by Product ID Route
-app.get('/:productId', async (req, res) => {
+app.post('/:productId', async (req, res) => {
   try {
     const { productId } = req.body;
 

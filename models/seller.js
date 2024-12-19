@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs'); // Added bcrypt import
 
 const SellerSchema = new mongoose.Schema({
   name: { type: String, required: true },
