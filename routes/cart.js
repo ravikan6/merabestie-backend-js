@@ -9,16 +9,17 @@ const nodemailer = require('nodemailer');
 require('dotenv').config();
 
 const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 587,
-  secure: false,
+  host: process.env.EMAIL_SERVER,
+  port: parseInt(process.env.EMAIL_PORT) || 465,
+  secure: process.env.EMAIL_SECURE === 'true' || false, // use TLS
   auth: {
-    user: `pecommerce8@gmail.com`,
-    pass: `rqrdabxuzpaecigz`
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASSWORD,
   },
   tls: {
-    rejectUnauthorized: false
-  }
+      // do not fail on invalid certs
+      rejectUnauthorized: false,
+  },
 });
 
 // Add to Cart Route

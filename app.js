@@ -15,9 +15,7 @@ const complaintsRoutes = require('./routes/complaints');
 const Product = require('./models/product');
 const Razorpay = require('razorpay');
 const crypto = require('crypto');
-const dotenv = require("dotenv")
-
-dotenv.config()
+require('dotenv').config();
 
 if (!process.env.MONGO_URI) {
     throw new Error("Please Add MONGO_URI in envirement variables...")
@@ -44,11 +42,17 @@ const razorpay = new Razorpay({
 });
 
 const transporter = nodemailer.createTransport({
-    service: 'gmail',
+    host: process.env.EMAIL_SERVER,
+    port: parseInt(process.env.EMAIL_PORT) || 465,
+    secure: process.env.EMAIL_SECURE === 'true' || false, // use TLS
     auth: {
-        user: 'pecommerce8@gmail.com', // Replace with your email
-        pass: 'rqrdabxuzpaecigz' // Replace with your password
-    }
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASSWORD,
+    },
+    tls: {
+        // do not fail on invalid certs
+        rejectUnauthorized: false,
+    },
 });
 
 app.use(
