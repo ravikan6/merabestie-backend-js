@@ -30,7 +30,7 @@ router.post('/addtocart', async (req, res) => {
     let cart = await Cart.findOne({ userId });
 
     if (cart) {
-      cart.productsInCart.push({ productId, quantity });
+      cart.productsInCart.push({ productId, productQty: quantity });
       await cart.save();
     } else {
       cart = new Cart({ userId, productsInCart: [{ productId, quantity }] });
