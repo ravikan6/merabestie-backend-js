@@ -13,12 +13,12 @@ const transporter = nodemailer.createTransport({
   port: parseInt(process.env.EMAIL_PORT) || 465,
   secure: process.env.EMAIL_SECURE === 'true' || false, // use TLS
   auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASSWORD,
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASSWORD,
   },
   tls: {
-      // do not fail on invalid certs
-      rejectUnauthorized: false,
+    // do not fail on invalid certs
+    rejectUnauthorized: false,
   },
 });
 
@@ -80,12 +80,13 @@ router.put('/update-quantity', async (req, res) => {
     product.productQty = productQty;
     await cart.save();
 
-    res.status(200).json({ message: 'Quantity updated successfully.' });
+    res.status(200).json({ success: true, message: 'Quantity updated successfully.' });
   } catch (error) {
     console.error('Error updating quantity:', error);
     res.status(500).json({ message: 'An error occurred while updating the quantity.' });
   }
 });
+
 // Delete Item from Cart Route
 router.post('/delete-items', async (req, res) => {
   const { userId, productId } = req.body;
@@ -101,7 +102,7 @@ router.post('/delete-items', async (req, res) => {
     );
 
     if (result.modifiedCount > 0) {
-      res.status(200).json({ message: 'Item deleted successfully.' });
+      res.status(200).json({ success: true, message: 'Item deleted successfully.' });
     } else {
       res.status(404).json({ message: 'Item not found in the cart.' });
     }
@@ -110,8 +111,6 @@ router.post('/delete-items', async (req, res) => {
     res.status(500).json({ message: 'An error occurred while deleting the item.' });
   }
 });
-
-// Route to update quantity
 
 // Place Order Route
 router.post('/place-order', async (req, res) => {
