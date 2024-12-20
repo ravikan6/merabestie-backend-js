@@ -57,48 +57,61 @@ router.post('/get-cart', async (req, res) => {
   }
 });
 
-// Delete Item from Cart Route
-router.delete('/delete-items', async (req, res) => {
-  try {
-    const { userId, productId } = req.body;
-
-    const cart = await Cart.findOne({ userId });
-    if (!cart) return res.status(404).json({ success: false, message: 'Cart not found for this user' });
-
-    cart.productsInCart = cart.productsInCart.filter(
-      item => !mongoose.Types.ObjectId(item.productId).equals(productId)
-    );
-
-    const updatedCart = await cart.save();
-
-    res.status(200).json({ success: true, message: 'Product removed from cart successfully', cart: updatedCart });
-  } catch (error) {
-    res.status(500).json({ success: false, message: 'Error removing product from cart', error: error.message });
-  }
-});
-
-// Update Product Quantity in Cart Route
 router.put('/update-quantity', async (req, res) => {
+  const { userId, productId, productQty } = req.body;
+
+  if (!userId || !productId || typeof productQty !== 'number') {
+    return res.status(400).json({ message: 'userId, productId, and a valid productQty are required.' });
+  }
+
   try {
-    const { userId, productId, quantity } = req.body;
-
     const cart = await Cart.findOne({ userId });
-    if (!cart) return res.status(404).json({ success: false, message: 'Cart not found for this user' });
 
-    const productIndex = cart.productsInCart.findIndex(
-      item => mongoose.Types.ObjectId(item.productId).equals(productId)
-    );
-    if (productIndex === -1) return res.status(404).json({ success: false, message: 'Product not found in cart' });
+    if (!cart) {
+      return res.status(404).json({ message: 'Cart not found.' });
+    }
 
-    cart.productsInCart[productIndex].quantity = quantity;
+    const product = cart.productsInCart.find(item => item.productId === productId);
 
-    const updatedCart = await cart.save();
+    if (!product) {
+      return res.status(404).json({ message: 'Product not found in the cart.' });
+    }
 
-    res.status(200).json({ success: true, message: 'Product quantity updated successfully', cart: updatedCart });
+    product.productQty = productQty;
+    await cart.save();
+
+    res.status(200).json({ message: 'Quantity updated successfully.' });
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Error updating product quantity', error: error.message });
+    console.error('Error updating quantity:', error);
+    res.status(500).json({ message: 'An error occurred while updating the quantity.' });
   }
 });
+// Delete Item from Cart Route
+router.post('/delete-items', async (req, res) => {
+  const { userId, productId } = req.body;
+
+  if (!userId || !productId) {
+    return res.status(400).json({ message: 'userId and productId are required.' });
+  }
+
+  try {
+    const result = await Cart.updateOne(
+      { userId },
+      { $pull: { productsInCart: { productId } } }
+    );
+
+    if (result.modifiedCount > 0) {
+      res.status(200).json({ message: 'Item deleted successfully.' });
+    } else {
+      res.status(404).json({ message: 'Item not found in the cart.' });
+    }
+  } catch (error) {
+    console.error('Error deleting item:', error);
+    res.status(500).json({ message: 'An error occurred while deleting the item.' });
+  }
+});
+
+// Route to update quantity
 
 // Place Order Route
 router.post('/place-order', async (req, res) => {
