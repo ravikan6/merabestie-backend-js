@@ -33,7 +33,7 @@ router.post('/addtocart', async (req, res) => {
       cart.productsInCart.push({ productId, productQty: quantity });
       await cart.save();
     } else {
-      cart = new Cart({ userId, productsInCart: [{ productId, quantity }] });
+      cart = new Cart({ userId, productsInCart: [{ productId, productQty: quantity }] });
       await cart.save();
     }
 
