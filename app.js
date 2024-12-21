@@ -140,9 +140,14 @@ app.post('/upload', (req, res) => {
             res.send(err);
         } else {
             if (req.file == undefined) {
-                res.send('Error: No File Selected!');
+                res.send({ error: "No File Selected!", success: false });
             } else {
-                res.send(`File Uploaded: ${req.file.filename}`);
+                res.send({
+                    success: true,
+                    message: 'File Uploaded Successfully!',
+                    file: req.file.filename,
+                    fileUrl: `${process.env.UPLOAD_URI || "https://api.merabestie.com/uploads"}/${req.file.filename}`
+                });
             }
         }
     });
