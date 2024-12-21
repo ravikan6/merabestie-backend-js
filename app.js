@@ -14,6 +14,8 @@ const complaintsRoutes = require('./routes/complaints');
 const Order = require('./models/ordermodel'); // Replace with correct path
 const Product = require('./models/product');
 const crypto = require('crypto');
+const multer = require('multer');
+const path = require('path');
 require('dotenv').config();
 
 if (!process.env.MONGO_URI) {
@@ -21,6 +23,39 @@ if (!process.env.MONGO_URI) {
 }
 
 const app = express();
+
+// Set up storage engine
+const storage = multer.diskStorage({
+    destination: './uploads/',
+    filename: function (req, file, cb) {
+        cb(null, file.fieldname + '-' + Date.now() + path.extname(file.originalname));
+    }
+});
+
+// Initialize upload
+const upload = multer({
+    storage: storage,
+    limits: { fileSize: 1000000 }, // Limit file size to 1MB
+    fileFilter: function (req, file, cb) {
+        checkFileType(file, cb);
+    }
+}).single('myFile');
+
+// Check file type
+function checkFileType(file, cb) {
+    // Allowed ext
+    const filetypes = /jpeg|jpg|png|gif|webp/;
+    // Check ext
+    const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
+    // Check mime
+    const mimetype = filetypes.test(file.mimetype);
+
+    if (mimetype && extname) {
+        return cb(null, true);
+    } else {
+        cb('Error: Images Only!');
+    }
+}
 
 let origins = process.env.ALLOWED_ORIGINS?.split(',').map(origin => origin.trim()) || [];
 // Middleware
@@ -34,6 +69,9 @@ app.use(cors({
 app.use(express.json());
 app.use(require('cookie-parser')());
 app.use(express.urlencoded({ extended: true }));
+// Public folder
+app.use(express.static('./public'));
+app.use(express.static('./uploads'));
 
 const transporter = nodemailer.createTransport({
     host: process.env.EMAIL_SERVER,
@@ -95,6 +133,21 @@ app.get('/keep-alive', (req, res) => {
     });
 });
 
+// Route to upload file
+app.post('/upload', (req, res) => {
+    upload(req, res, (err) => {
+        if (err) {
+            res.send(err);
+        } else {
+            if (req.file == undefined) {
+                res.send('Error: No File Selected!');
+            } else {
+                res.send(`File Uploaded: ${req.file.filename}`);
+            }
+        }
+    });
+});
+
 // Get Products by Category Route
 app.post('/product/category', async (req, res) => {
     try {
@@ -107,6 +160,8 @@ app.post('/product/category', async (req, res) => {
         // Map normalized categories to their proper display versions
         switch (normalizedCategory) {
             case 'gift-boxes':
+                searchCategory = 'Gift Boxes';
+                break;
             case 'gift boxes':
                 searchCategory = 'Gift Boxes';
                 break;
@@ -236,7 +291,7 @@ app.get('/product/:productId', async (req, res) => {
 });
 
 // Update Stock Status Route
-app.put('/instock-update', async (req, res) => {
+app.post('/instock-update', async (req, res) => {
     try {
         const { productId, price, name, category, inStockValue, soldStockValue } = req.body;
         // Find and update the product
@@ -245,10 +300,10 @@ app.put('/instock-update', async (req, res) => {
             {
                 $set: {
                     name: name,
-                    price: price,
+                    price: parseFloat(price || 0).toFixed(2),
                     category: category,
-                    inStockValue: inStockValue,
-                    soldStockValue: soldStockValue
+                    inStockValue: Number(inStockValue || 0),
+                    soldStockValue: Number(soldStockValue || 0)
                 }
             },
             { new: true, upsert: false } // Return the updated document
@@ -277,6 +332,37 @@ app.put('/instock-update', async (req, res) => {
     }
 });
 
+// Delete The Product
+app.post('/delete-product', async (req, res) => {
+    try {
+        const { productId } = req.body;
+        // Find and update the product
+        const updatedProduct = await Product.deleteOne(
+            { productId: productId }, // Match by productId
+        );
+
+        if (!updatedProduct) {
+            return res.status(404).json({
+                success: false,
+                message: 'Product not found'
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            message: 'Product Deleted!',
+            product: updatedProduct // Include updated product in response for verification
+        });
+
+    } catch (error) {
+        // Log the error
+        res.status(500).json({
+            success: false,
+            message: 'Error Deleting Product.',
+            error: error.message
+        });
+    }
+});
 
 // Assign Product ID Route
 app.get('/assign-productid', async (req, res) => {
