@@ -11,9 +11,8 @@ const couponRoutes = require('./routes/coupon')
 const adminAuthRoutes = require('./routes/adminauth');
 const cartRoutes = require('./routes/cart');
 const complaintsRoutes = require('./routes/complaints');
-
+const Order = require('./models/ordermodel'); // Replace with correct path
 const Product = require('./models/product');
-const Razorpay = require('razorpay');
 const crypto = require('crypto');
 require('dotenv').config();
 
@@ -35,11 +34,6 @@ app.use(cors({
 app.use(express.json());
 app.use(require('cookie-parser')());
 app.use(express.urlencoded({ extended: true }));
-
-const razorpay = new Razorpay({
-    key_id: process.env.RAZORPAY_KEY,
-    key_secret: process.env.RAZORPAY_SECRET,
-});
 
 const transporter = nodemailer.createTransport({
     host: process.env.EMAIL_SERVER,
@@ -242,20 +236,22 @@ app.get('/product/:productId', async (req, res) => {
 });
 
 // Update Stock Status Route
-app.post('/instock-update', async (req, res) => {
+app.put('/instock-update', async (req, res) => {
     try {
-        const { productId, inStockValue, soldStockValue } = req.body;
-
+        const { productId, price, name, category, inStockValue, soldStockValue } = req.body;
         // Find and update the product
         const updatedProduct = await Product.findOneAndUpdate(
-            { productId: productId },
+            { productId: productId }, // Match by productId
             {
                 $set: {
+                    name: name,
+                    price: price,
+                    category: category,
                     inStockValue: inStockValue,
                     soldStockValue: soldStockValue
                 }
             },
-            { new: true, upsert: false }
+            { new: true, upsert: false } // Return the updated document
         );
 
         if (!updatedProduct) {
@@ -268,9 +264,11 @@ app.post('/instock-update', async (req, res) => {
         res.status(200).json({
             success: true,
             message: 'Stock status updated successfully',
+            product: updatedProduct // Include updated product in response for verification
         });
 
     } catch (error) {
+        // Log the error
         res.status(500).json({
             success: false,
             message: 'Error updating stock status',
@@ -278,6 +276,7 @@ app.post('/instock-update', async (req, res) => {
         });
     }
 });
+
 
 // Assign Product ID Route
 app.get('/assign-productid', async (req, res) => {
@@ -372,207 +371,6 @@ app.post('/update-address', async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Error updating address',
-            error: error.message
-        });
-    }
-});
-
-// Order Schema
-const orderSchema = new mongoose.Schema({
-    orderId: String,
-    userId: String,
-    date: String,
-    time: String,
-    address: String,
-    email: String,
-    name: String,
-    productIds: [String],
-    trackingId: String,
-    price: Number,
-    status: {
-        type: String,
-        enum: ['Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled'],
-        default: 'Pending',
-    },
-    paymentMethod: {
-        type: String,
-        enum: ['Credit Card', 'Debit Card', 'Net Banking', 'UPI', 'COD'],
-        required: false,
-    },
-    paymentStatus: {
-        type: String,
-        enum: ['Paid', 'Unpaid', 'Refunded', 'Pending'],
-        default: 'Pending',
-    },
-    createdAt: {
-        type: Date,
-        default: Date.now,
-    },
-    updatedAt: {
-        type: Date,
-    },
-});
-
-orderSchema.pre('save', function (next) {
-    if (this.isModified()) {
-        this.updatedAt = new Date();
-    }
-    next();
-});
-
-const Order = mongoose.model('Order', orderSchema);
-
-app.post('/create-order', async (req, res) => {
-    const { amount, currency, userId } = req.body; // Amount in smallest currency unit (e.g., paise for INR)
-
-    try {
-        const order = await razorpay.orders.create({
-            amount: amount, // e.g., 50000 for ₹500
-            currency: currency || 'INR',
-            notes: {
-                user: userId | null
-            }
-        });
-        res.status(200).json(order);
-    } catch (error) {
-        console.error('Error creating Razorpay order:', error);
-        res.status(500).json({ error: 'Failed to create order' });
-    }
-});
-
-app.post('/verify-payment', async (req, res) => {
-    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
-
-    const secret = process.env.RAZORPAY_SECRET; // Replace with your Razorpay Secret
-
-    const body = razorpay_order_id + "|" + razorpay_payment_id;
-
-    const expectedSignature = crypto.createHmac('sha256', secret)
-        .update(body.toString())
-        .digest('hex');
-
-    if (expectedSignature === razorpay_signature) {
-        // Payment is valid
-        res.json({ success: true });
-    } else {
-        // Payment is invalid
-        res.json({ success: false });
-    }
-});
-
-// Place Order Route
-app.post('/place-order', async (req, res) => {
-    try {
-        const { userId, date, time, address, price, productsOrdered, paymentStatus, status } = req.body;
-
-        // Generate random 6 digit orderId
-        const orderId = Math.floor(100000 + Math.random() * 900000).toString();
-
-        // Generate random 12 digit alphanumeric trackingId
-        const trackingId = Math.random().toString(36).substring(2, 14).toUpperCase();
-
-        // Find user details
-        const findUserDetails = async (userId) => {
-            // Use mongoose model directly instead of undefined User
-            const user = await mongoose.model('User').findOne({ userId });
-            if (!user) {
-                throw new Error('User not found');
-            }
-            return {
-                name: user.name,
-                email: user.email
-            };
-        };
-
-        // Extract product IDs
-        const getProductIds = (productsOrdered) => {
-            return productsOrdered.map(item => item.productId);
-        };
-
-        // Find product details
-        // const productDetailsFinder = async (productIds) => {
-        //   const products = await Product.find({ productId: { $in: productIds } });
-        //   return products;
-        // };
-
-        // Get user details
-        const userDetails = await findUserDetails(userId);
-
-        // Get product IDs array
-        const productIds = getProductIds(productsOrdered);
-
-        // Get product details
-        // const productDetails = await productDetailsFinder(productIds);
-        // Create new order
-        const order = new Order({
-            userId,
-            orderId,
-            date,
-            time,
-            address,
-            email: userDetails.email,
-            name: userDetails.name,
-            productIds,
-            trackingId,
-            price,
-            status: status,
-            paymentStatus: paymentStatus
-        });
-
-        await order.save();
-
-        // Send confirmation email
-        const sendingMail = async () => {
-            const emailHtml = `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <div style="background-color: pink; padding: 20px; text-align: center; margin-bottom: 20px;">
-            <h1 style="color: #333; margin: 0;">Mera Bestie</h1>
-          </div>
-          
-          <h2 style="color: #333; text-align: center;">Order Confirmation</h2>
-          <p>Dear ${userDetails.name},</p>
-          <p>Thank you for your order! Your order has been successfully placed.</p>
-          
-          <div style="background-color: #f9f9f9; padding: 15px; margin: 20px 0; border-radius: 5px;">
-            <p><strong>Order ID:</strong> ${orderId}</p>
-            <p><strong>Tracking ID:</strong> ${trackingId}</p>
-            <p><strong>Date:</strong> ${date}</p>
-            <p><strong>Time:</strong> ${time}</p>
-            <p><strong>Delivery Address:</strong> ${address}</p>
-          </div>
-
-          <div style="margin-top: 20px; text-align: right;">
-            <p><strong>Total Amount:</strong> ₹${price}</p>
-          </div>
-
-          <p style="margin-top: 30px;">You can track your order using the tracking ID provided above.</p>
-          <p>If you have any questions, please don't hesitate to contact us.</p>
-          
-          <p style="margin-top: 30px;">Best regards,<br>Your Mera Bestie Team</p>
-        </div>
-      `;
-
-            await transporter.sendMail({
-                from: '"Mera Bestie Support" <pecommerce8@gmail.com>',
-                to: userDetails.email,
-                subject: `Order Confirmation - Order #${orderId}`,
-                html: emailHtml
-            });
-        };
-
-        await sendingMail();
-
-        res.status(200).json({
-            success: true,
-            message: 'Order placed successfully',
-            orderId,
-            trackingId
-        });
-
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: 'Error placing order',
             error: error.message
         });
     }

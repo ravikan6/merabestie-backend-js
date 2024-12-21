@@ -5,7 +5,6 @@ const Complaint = require('../models/complaintmodel');  // Import the Complaint 
 const router = express.Router();
 require('dotenv').config();
 
-// Configure nodemailer
 const transporter = nodemailer.createTransport({
   host: process.env.EMAIL_SERVER,
   port: parseInt(process.env.EMAIL_PORT) || 465,
@@ -19,6 +18,7 @@ const transporter = nodemailer.createTransport({
       rejectUnauthorized: false,
   },
 });
+
 
 // Function to send confirmation email
 const sendConfirmationEmail = async (email, complaintNumber, message) => {
