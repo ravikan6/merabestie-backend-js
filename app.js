@@ -298,7 +298,7 @@ app.get('/product/:productId', async (req, res) => {
 // Update Stock Status Route
 app.post('/instock-update', async (req, res) => {
     try {
-        const { productId, price, name, category, inStockValue, soldStockValue } = req.body;
+        const { productId, price, name, category, inStockValue, soldStockValue, img, rating, visibility } = req.body;
         // Find and update the product
         const updatedProduct = await Product.findOneAndUpdate(
             { productId: productId }, // Match by productId
@@ -308,7 +308,10 @@ app.post('/instock-update', async (req, res) => {
                     price: parseFloat(price || 0).toFixed(2),
                     category: category,
                     inStockValue: Number(inStockValue || 0),
-                    soldStockValue: Number(soldStockValue || 0)
+                    soldStockValue: Number(soldStockValue || 0),
+                    img: img,
+                    rating: Number(rating || 0),
+                    visibility: visibility || 'on'
                 }
             },
             { new: true, upsert: false } // Return the updated document
