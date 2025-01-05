@@ -11,7 +11,6 @@ const couponRoutes = require('./routes/coupon')
 const adminAuthRoutes = require('./routes/adminauth');
 const cartRoutes = require('./routes/cart');
 const complaintsRoutes = require('./routes/complaints');
-const couponRoutes = require('./routes/coupon');
 const Order = require('./models/ordermodel'); // Replace with correct path;
 const imageRoutes = require("./routes/image");
 const reviewsRoutes = require('./routes/reviews');
