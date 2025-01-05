@@ -11,7 +11,11 @@ const couponRoutes = require('./routes/coupon')
 const adminAuthRoutes = require('./routes/adminauth');
 const cartRoutes = require('./routes/cart');
 const complaintsRoutes = require('./routes/complaints');
-const Order = require('./models/ordermodel'); // Replace with correct path
+const couponRoutes = require('./routes/coupon');
+const Order = require('./models/ordermodel'); // Replace with correct path;
+const imageRoutes = require("./routes/image");
+const reviewsRoutes = require('./routes/reviews');
+const SEOroutes = require('./routes/seo');
 const Product = require('./models/product');
 const crypto = require('crypto');
 const multer = require('multer');
@@ -111,9 +115,12 @@ app.use('/api', adminAuthRoutes); // OLD API
 app.use('/cart', cartRoutes);
 app.use('/complaints', complaintsRoutes);
 app.use('/coupon', couponRoutes)
+app.use('/image',imageRoutes)
+app.use('/reviews', reviewsRoutes);
+app.use('/seo', SEOroutes);
 
 // MongoDB Connection
-const uri = process.env.MONGO_URI;
+const uri = "mongodb+srv://ecommerce:ecommerce@ecommerce.dunf0.mongodb.net/";
 mongoose.connect(uri)
     .then(() => console.log('Connected to MongoDB'))
     .catch(err => console.error('MongoDB connection error:', err));
@@ -216,6 +223,36 @@ app.post('/create-product', async (req, res) => {
             error: error.message
         });
     }
+});
+
+//delete complete product
+app.post('/delete-product', async (req, res) => {
+  try {
+    const { productId } = req.body;
+
+     // Find product by productId
+     const product = await Product.findOne({ productId });
+
+     if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: 'Product not found'
+      });
+    }
+    const response = await Product.deleteOne({productId})
+    if(response.deletedCount===1&&response.acknowledged===true)
+      return res.status(200).json({
+        success: true,
+        message: 'Product deleted successfully',
+      });
+  } catch (error) {
+    console.log(error)
+    res.status(500).json({
+      success: false,
+      message: 'Error deleting product',
+      error: error.message
+    });
+  }
 });
 
 // Get All Products Route
@@ -647,7 +684,7 @@ app.post('/:productId', async (req, res) => {
     }
 });
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
 });

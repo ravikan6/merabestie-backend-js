@@ -2,8 +2,9 @@ const mongoose = require('mongoose');
 const productSchema = new mongoose.Schema({
   name: String,
   price: String,
-  img: String,
+  img: [{type: String}],
   category: String,
+  description: String,
   rating: Number,
   productId: { type: String, unique: true }, // Added productId field
   inStockValue: Number, // Available stock value
