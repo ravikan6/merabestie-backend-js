@@ -121,7 +121,7 @@ app.use('/seo', SEOroutes);
 app.use('/otp', otpRoutes);
 
 // MongoDB Connection
-const uri = "mongodb+srv://ecommerce:ecommerce@ecommerce.dunf0.mongodb.net/";
+const uri = process.env.MONGO_URI;
 mongoose.connect(uri)
     .then(() => console.log('Connected to MongoDB'))
     .catch(err => console.error('MongoDB connection error:', err));
