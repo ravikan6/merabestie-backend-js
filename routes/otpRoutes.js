@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const OTP = require('../models/otpModel'); // Import OTP model
+const OTP = require('../models/otpmodels'); // Import OTP model
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
 
