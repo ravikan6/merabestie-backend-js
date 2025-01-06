@@ -31,7 +31,7 @@ async function sendEmailToAllUsers(subject, message) {
     }
 
     await transporter.sendMail({
-      from: '3dx',
+      from: 'Mera Bestie',
       to: emailAddresses.join(','),
       subject: subject,
       text: message,
