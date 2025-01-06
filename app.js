@@ -16,6 +16,7 @@ const imageRoutes = require("./routes/image");
 const reviewsRoutes = require('./routes/reviews');
 const SEOroutes = require('./routes/seo');
 const Product = require('./models/product');
+const otpRoutes = require('./routes/otpRoutes');
 const crypto = require('crypto');
 const multer = require('multer');
 const path = require('path');
@@ -117,6 +118,7 @@ app.use('/coupon', couponRoutes)
 app.use('/image',imageRoutes)
 app.use('/reviews', reviewsRoutes);
 app.use('/seo', SEOroutes);
+app.use('/otp', otpRoutes);
 
 // MongoDB Connection
 const uri = "mongodb+srv://ecommerce:ecommerce@ecommerce.dunf0.mongodb.net/";
