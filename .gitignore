@@ -1,0 +1,8 @@
+node_modules/
+.env
+
+.htaccess
+node_modules
+stderr.log
+tmp/
+yarn.lock
