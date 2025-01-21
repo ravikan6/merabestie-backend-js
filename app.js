@@ -20,12 +20,16 @@ const crypto = require('crypto');
 const multer = require('multer');
 const path = require('path');
 require('dotenv').config();
+const axios = require('axios'); 
+
 
 if (!process.env.MONGO_URI) {
     throw new Error("Please Add MONGO_URI in envirement variables...")
 }
 
 const app = express();
+app.use(express.json());
+app.use(cors());
 
 // Set up storage engine
 const storage = multer.diskStorage({
@@ -34,6 +38,95 @@ const storage = multer.diskStorage({
         cb(null, file.fieldname + '-' + Date.now() + path.extname(file.originalname));
     }
 });
+
+
+// HMAC code maker 
+
+const calculate_hmac_sha256_as_base64 = (key, content) => {
+    const hmac = crypto.createHmac('sha256', key).update(content).digest('base64'); 
+    return hmac;
+  };
+
+
+// Write code for shiprocketapi 
+// const axios = require('axios');
+
+app.post('/shiprocketapi', async (req, res) => {
+    console.log("Received request");
+    const mydata = req.body;
+    console.log("Requested body:", req.body);
+
+    try {
+        const apiKey = "F4ZJ0KzzTQw6M89A";
+        const apiSecret = "XY9bc2WhIUnMorH0gPsEVDagZFuIFzfV";
+
+        const makeApiRequest = async (apiKey, apiSecret, thedata) => {
+            const timestamp = new Date().toISOString();
+            const cartData = {
+                "cart_data": {
+                    "items": thedata
+                },
+                "redirect_url": "https://test-checkout.requestcatcher.com/test?key=val",
+                "timestamp": timestamp
+            };
+
+            const requestBody = JSON.stringify(cartData);
+            console.log("Cart Data:", cartData);
+
+            const signature = calculate_hmac_sha256_as_base64(apiSecret, requestBody);
+            console.log("Signature:", signature);
+
+            const config = {
+                method: 'post',
+                maxBodyLength: Infinity,
+                url: process.env.API_ACCESS_URL,
+                headers: {
+                    'X-Api-Key': apiKey,
+                    'X-Api-HMAC-SHA256': signature,
+                    'Content-Type': 'application/json'
+                },
+                data: requestBody // Use JSON stringified data
+            };
+
+            try {
+                const response = await axios(config);
+                console.log("Token genrated : ", response.data.result.token); 
+                console.log("API Response:", response.data);
+
+                return response.data.result.token; // Adjust according to the API response
+            } catch (error) {
+                console.error("API request failed:", error.response?.data || error.message);
+                throw new Error("Failed to communicate with the API.");
+            }
+        };
+
+        // Call makeApiRequest with proper parameters
+        const token = await makeApiRequest(apiKey, apiSecret, mydata.cart_data.items);
+
+        if (!token) {
+            return res.status(500).json({
+                success: false,
+                message: 'Failed to retrieve token from Shiprocket API'
+            });
+        }
+
+        console.log("Token:", token);
+
+        res.status(200).json({
+            token: token,
+            success: true,
+            message: 'Order processed successfully',
+            orderId: 'ORDER12345' // Example Order ID
+        });
+    } catch (error) {
+        console.error("Error processing order:", error);
+        res.status(500).json({
+            success: false,
+            message: 'An error occurred while processing the order',
+        });
+    }
+});
+
 
 // Initialize upload
 const upload = multer({
@@ -92,7 +185,7 @@ const transporter = nodemailer.createTransport({
 
 app.use(
     session({
-        secret: process.env.SECRET,
+        secret: "process.env.SECRET",
         resave: false,
         saveUninitialized: false,
         store: MongoStore.create({
@@ -683,7 +776,7 @@ app.post('/:productId', async (req, res) => {
     }
 });
 
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
 });
