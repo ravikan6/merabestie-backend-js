@@ -20,7 +20,8 @@ const crypto = require('crypto');
 const multer = require('multer');
 const path = require('path');
 require('dotenv').config();
-const axios = require('axios'); 
+const axios = require('axios');
+
 
 
 if (!process.env.MONGO_URI) {
@@ -43,89 +44,36 @@ const storage = multer.diskStorage({
 // HMAC code maker 
 
 const calculate_hmac_sha256_as_base64 = (key, content) => {
-    const hmac = crypto.createHmac('sha256', key).update(content).digest('base64'); 
+    const hmac = crypto.createHmac('sha256', key).update(content).digest('base64');
     return hmac;
-  };
+};
 
-
-// Write code for shiprocketapi 
-// const axios = require('axios');
-
-app.post('/shiprocketapi', async (req, res) => {
-    console.log("Received request");
-    const mydata = req.body;
-    console.log("Requested body:", req.body);
-
+// Client-side checkout handler
+const handleCheckout = async (event) => {
     try {
-        const apiKey = "F4ZJ0KzzTQw6M89A";
-        const apiSecret = "XY9bc2WhIUnMorH0gPsEVDagZFuIFzfV";
+        const mydata = cartItems.map(item => ({
+            variant_id: item.productId,
+            quantity: item.quantity || 1
+        }));
 
-        const makeApiRequest = async (apiKey, apiSecret, thedata) => {
-            const timestamp = new Date().toISOString();
-            const cartData = {
-                "cart_data": {
-                    "items": thedata
-                },
-                "redirect_url": "https://test-checkout.requestcatcher.com/test?key=val",
-                "timestamp": timestamp
-            };
-
-            const requestBody = JSON.stringify(cartData);
-            console.log("Cart Data:", cartData);
-
-            const signature = calculate_hmac_sha256_as_base64(apiSecret, requestBody);
-            console.log("Signature:", signature);
-
-            const config = {
-                method: 'post',
-                maxBodyLength: Infinity,
-                url: process.env.API_ACCESS_URL,
-                headers: {
-                    'X-Api-Key': apiKey,
-                    'X-Api-HMAC-SHA256': signature,
-                    'Content-Type': 'application/json'
-                },
-                data: requestBody // Use JSON stringified data
-            };
-
-            try {
-                const response = await axios(config);
-                console.log("Token genrated : ", response.data.result.token); 
-                console.log("API Response:", response.data);
-
-                return response.data.result.token; // Adjust according to the API response
-            } catch (error) {
-                console.error("API request failed:", error.response?.data || error.message);
-                throw new Error("Failed to communicate with the API.");
-            }
+        const transformedData = {
+            cart_data: { items: mydata },
+            redirect_url: process.env.REDIRECT_URL,
+            timestamp: new Date().toISOString()
         };
 
-        // Call makeApiRequest with proper parameters
-        const token = await makeApiRequest(apiKey, apiSecret, mydata.cart_data.items);
+        const { data } = await axios.post('/shiprocketapi', transformedData);
+        const { token } = data;
 
-        if (!token) {
-            return res.status(500).json({
-                success: false,
-                message: 'Failed to retrieve token from Shiprocket API'
-            });
-        }
-
-        console.log("Token:", token);
-
-        res.status(200).json({
-            token: token,
-            success: true,
-            message: 'Order processed successfully',
-            orderId: 'ORDER12345' // Example Order ID
+        window.HeadlessCheckout.addToCart(event, token, {
+            fallbackUrl: process.env.FALLBACK_URL
         });
     } catch (error) {
-        console.error("Error processing order:", error);
-        res.status(500).json({
-            success: false,
-            message: 'An error occurred while processing the order',
-        });
+        console.error('Checkout failed');
+        // Optional: show user-friendly error notification
     }
-});
+};
+
 
 
 // Initialize upload
@@ -155,12 +103,13 @@ function checkFileType(file, cb) {
 
 let origins = process.env.ALLOWED_ORIGINS?.split(',').map(origin => origin.trim()) || [];
 // Middleware
+
 app.use(cors({
-    origin: ["https://www.merabestie.com","http://localhost:3000", "*.merabestie.com", ...origins], // Frontend URLs
-    credentials: true,
+    origin: ["https://www.merabestie.com", "http://localhost:3000", "*.merabestie.com"], // Specific origins
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Api-Key', 'X-Api-HMAC-SHA256']
 }));
+
 
 app.use(express.json());
 app.use(require('cookie-parser')());
@@ -207,7 +156,7 @@ app.use('/api', adminAuthRoutes); // OLD API
 app.use('/cart', cartRoutes);
 app.use('/complaints', complaintsRoutes);
 app.use('/coupon', couponRoutes)
-app.use('/image',imageRoutes)
+app.use('/image', imageRoutes)
 app.use('/reviews', reviewsRoutes);
 app.use('/seo', SEOroutes);
 
@@ -231,6 +180,132 @@ app.get('/keep-alive', (req, res) => {
         message: 'Server is up and running, Configured By RK'
     });
 });
+
+app.post('/shiprocket/order', async (req, res) => {
+    try {
+        const { items, shippingDetails } = req.body;
+
+        const timestamp = new Date().toISOString();
+        const payload = {
+            cart_data: { items },
+            shippingDetails,
+            timestamp
+        };
+
+        const signature = crypto.createHmac('sha256', process.env.SHIPROCKET_SECRET)
+            .update(JSON.stringify(payload))
+            .digest('base64');
+
+        const response = await axios.post('https://api.shiprocket.in/v1/external/orders/create/adhoc', payload, {
+            headers: {
+                'X-Api-Key': process.env.SHIPROCKET_API_KEY,
+                'X-Api-HMAC-SHA256': signature,
+                'Content-Type': 'application/json',
+            },
+        });
+
+        res.status(200).json(response.data);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ success: false, message: 'Failed to process order.' });
+    }
+});
+
+// app.post('/shiprocketapi', async (req, res) => {
+//     try {
+//         const { cart_data } = req.body;
+
+//         if (!cart_data || !Array.isArray(cart_data.items)) {
+//             throw new Error('Invalid cart_data or items.');
+//         }
+
+//         console.log('Full Cart Data:', JSON.stringify(cart_data, null, 2));
+
+//         // Validate each item's variantId
+//         cart_data.items.forEach((item, index) => {
+//             if (!item.variantId) {
+//                 throw new Error(`Item at index ${index} is missing a variantId.`);
+//             }
+//         });
+
+//         const response = await makeApiRequest(apiKey, apiSecret, cart_data.items);
+//         res.status(200).json({ success: true, token: response });
+//     } catch (error) {
+//         console.error('Error processing order:', error.message);
+//         res.status(400).json({ success: false, message: error.message });
+//     }
+// });
+
+app.post('/shiprocketapi', async (req, res) => {
+    console.log("Received request");
+    const mydata = req.body;
+    console.log("Requested body:", req.body);
+
+    try {
+        const apiKey = "F4ZJ0KzzTQw6M89A";
+        const apiSecret = "XY9bc2WhIUnMorH0gPsEVDagZFuIFzfV";
+        const makeApiRequest = async (apiKey, apiSecret, thedata) => {
+            const timestamp = new Date().toISOString();
+
+            const cartData = thedata;
+
+            const requestBody = JSON.stringify(cartData);
+            console.log("Cart Data:", requestBody);
+
+            const signature = calculate_hmac_sha256_as_base64(apiSecret, requestBody);
+            console.log("Signature:", signature);
+
+            const config = {
+                method: 'post',
+                maxBodyLength: Infinity,
+                url: process.env.API_ACCESS_URL,
+                headers: {
+                    'X-Api-Key': apiKey,
+                    'X-Api-HMAC-SHA256': signature,
+                    'Content-Type': 'application/json'
+                },
+                data: requestBody // Use JSON stringified data
+            };
+
+            try {
+                const response = await axios(config);
+                console.log("Token genrated : ", response.data.result.token);
+                console.log("API Response:", response.data);
+
+                return response.data.result.token; // Adjust according to the API response
+            } catch (error) {
+                console.error("API request failed:", error.response?.data || error.message);
+                throw new Error("Failed to communicate with the API.");
+            }
+        };
+
+        // Call makeApiRequest with proper parameters
+        const token = await makeApiRequest(apiKey, apiSecret, mydata);
+
+        if (!token) {
+            return res.status(500).json({
+                success: false,
+                message: 'Failed to retrieve token from Shiprocket API'
+            });
+        }
+
+        console.log("Token:", token);
+
+        res.status(200).json({
+            token: token,
+            success: true,
+            message: 'Order processed successfully',
+            orderId: 'ORDER12345' // Example Order ID
+        });
+    } catch (error) {
+        console.error("Error processing order:", error);
+        res.status(500).json({
+            success: false,
+            message: 'An error occurred while processing the order',
+        });
+    }
+});
+
 
 // Route to upload file
 app.post('/upload', (req, res) => {
@@ -319,32 +394,32 @@ app.post('/create-product', async (req, res) => {
 
 //delete complete product
 app.post('/delete-product', async (req, res) => {
-  try {
-    const { productId } = req.body;
+    try {
+        const { productId } = req.body;
 
-     // Find product by productId
-     const product = await Product.findOne({ productId });
+        // Find product by productId
+        const product = await Product.findOne({ productId });
 
-     if (!product) {
-      return res.status(404).json({
-        success: false,
-        message: 'Product not found'
-      });
+        if (!product) {
+            return res.status(404).json({
+                success: false,
+                message: 'Product not found'
+            });
+        }
+        const response = await Product.deleteOne({ productId })
+        if (response.deletedCount === 1 && response.acknowledged === true)
+            return res.status(200).json({
+                success: true,
+                message: 'Product deleted successfully',
+            });
+    } catch (error) {
+        console.log(error)
+        res.status(500).json({
+            success: false,
+            message: 'Error deleting product',
+            error: error.message
+        });
     }
-    const response = await Product.deleteOne({productId})
-    if(response.deletedCount===1&&response.acknowledged===true)
-      return res.status(200).json({
-        success: true,
-        message: 'Product deleted successfully',
-      });
-  } catch (error) {
-    console.log(error)
-    res.status(500).json({
-      success: false,
-      message: 'Error deleting product',
-      error: error.message
-    });
-  }
 });
 
 // Get All Products Route
